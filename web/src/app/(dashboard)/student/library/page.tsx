@@ -12,6 +12,7 @@ import {
   TableRow,
   TableHead,
   TableCell,
+  LoadFailed,
 } from "@/components/ui";
 import { useBooks, useMyLoans } from "@/hooks/use-library";
 import { BookOpen, Library, Search } from "lucide-react";
@@ -23,7 +24,12 @@ export default function StudentLibraryPage() {
   const [tab, setTab] = useState<"loans" | "catalog">("loans");
   const [search, setSearch] = useState("");
   const { data: myLoans, isLoading: loadingLoans } = useMyLoans();
-  const { data: books, isLoading: loadingBooks } = useBooks(
+  const {
+    data: books,
+    isLoading: loadingBooks,
+    isError: booksFailed,
+    refetch: reloadBooks,
+  } = useBooks(
     search ? { search } : undefined,
   );
 
@@ -186,6 +192,8 @@ export default function StudentLibraryPage() {
             <div className="flex justify-center py-12">
               <Spinner size="lg" />
             </div>
+          ) : booksFailed ? (
+            <LoadFailed what="the books" onRetry={() => reloadBooks()} />
           ) : books?.length > 0 ? (
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {books.map((book: any) => (

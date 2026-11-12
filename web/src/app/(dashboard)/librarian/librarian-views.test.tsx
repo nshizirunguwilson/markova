@@ -193,6 +193,27 @@ describe("the librarian's dashboard", () => {
   });
 });
 
+/* The finding: with the books request failing, this page said "No books
+   found", with no error and nothing to press. A librarian would believe the
+   catalogue was gone. */
+describe("a catalogue that did not load", () => {
+  it("says it failed rather than that the library is empty", async () => {
+    serveFailure(h.api);
+    renderPage(LibrarianBooks, { role: "LIBRARIAN" });
+    expect(await screen.findByText("Could not load the books")).toBeTruthy();
+    expect(screen.queryByText("No books found")).toBeNull();
+  });
+
+  it("loads them on Try again", async () => {
+    serveFailure(h.api);
+    renderPage(LibrarianBooks, { role: "LIBRARIAN" });
+    const retry = await screen.findByRole("button", { name: /try again/i });
+    serve(h.api, routes);
+    await userEvent.click(retry);
+    expect(await screen.findByText("Imigani")).toBeTruthy();
+  });
+});
+
 describe("every librarian control", () => {
   it.each([
     ["books", LibrarianBooks],
