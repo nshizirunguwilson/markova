@@ -81,6 +81,68 @@ export class AccountsService {
   }
 
   /**
+   * Refuse to join a login that belongs to somebody else.
+   *
+   * Every school writes addresses as initial.lastname@markova.edu, so two
+   * different people collide by construction: a new nurse, Vestine
+   * Mukantwari, was given the address of a parent, Valentine Mukantwari, and
+   * joining it handed the parent the nurse's access while the nurse could not
+   * sign in at all. A login is joined only when it is plainly the same
+   * person: the same names, in any order and with or without a middle name,
+   * or the same national ID.
+   *
+   * Inside one school the answer names who holds the address, because the
+   * school already knows its own people. For a login known only to other
+   * schools it says no more than that the address is taken: less than
+   * joining would give away, and nothing about who holds it.
+   */
+  async refuseSomebodyElse(
+    login: LoginFor,
+    person: { firstName: string; lastName: string; nationalId?: string | null },
+    row?: number,
+  ): Promise<void> {
+    if (login.isNew) return;
+    const schoolId = await this.prisma.currentSchoolId();
+    const holders = await withPlatform(() =>
+      this.prisma.user.findMany({
+        where: { accountId: login.accountId },
+        select: {
+          firstName: true,
+          lastName: true,
+          nationalId: true,
+          schoolId: true,
+        },
+      }),
+    );
+    const words = (s: string) =>
+      new Set(
+        s
+          .toLowerCase()
+          .normalize('NFD')
+          .replace(/[̀-ͯ]/g, '')
+          .split(/[^a-z]+/)
+          .filter(Boolean),
+      );
+    const theirs = words(`${person.firstName} ${person.lastName}`);
+    const samePerson = holders.some((h) => {
+      if (person.nationalId && h.nationalId === person.nationalId) return true;
+      const held = words(`${h.firstName} ${h.lastName}`);
+      const within = (a: Set<string>, b: Set<string>) =>
+        [...a].every((w) => b.has(w));
+      return within(theirs, held) || within(held, theirs);
+    });
+    if (samePerson) return;
+
+    const prefix = row ? `Row ${row}: ` : '';
+    const here = holders.find((h) => h.schoolId === schoolId);
+    throw new ConflictException(
+      here
+        ? `${prefix}That email or phone number already belongs to ${here.firstName} ${here.lastName}. Give ${person.firstName} their own.`
+        : `${prefix}That email or phone number is already used by somebody else. Give ${person.firstName} their own.`,
+    );
+  }
+
+  /**
    * Write the new login, when there is one, inside the school's transaction.
    *
    * Runs after the school record is created with `accountId` set: the
