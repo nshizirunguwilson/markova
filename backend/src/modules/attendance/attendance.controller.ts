@@ -85,11 +85,18 @@ export class AttendanceController {
   @Roles('HEAD_TEACHER', 'TEACHER', 'STUDENT', 'PARENT')
   @ApiOperation({ summary: 'Get student attendance summary' })
   async getStudentSummary(
-    @Query('studentId') studentId: string,
+    // Optional here so a missing id reaches the plain refusal below; a value
+    // that is not an id at all is refused by the pipe.
+    @Query('studentId', new ParseUUIDPipe({ optional: true }))
+    studentId: string,
     @Query('dateFrom') dateFrom?: string,
     @Query('dateTo') dateTo?: string,
     @CurrentUser() user?: any,
   ) {
+    /* Before whose student it is: with no id the ownership check looked up
+       nothing and crashed for a parent, and refused a student as if the
+       record were somebody else's. Neither was the real problem. */
+    if (!studentId) throw new BadRequestException('Say which student');
     await this.ownership.verifyStudentAccess(
       user.id,
       user.role,

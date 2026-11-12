@@ -188,6 +188,20 @@ describe('AttendanceController', () => {
     });
   });
 
+  it('asks which student before anything else, for every role', async () => {
+    for (const who of [parent, { ...parent, role: 'STUDENT' }]) {
+      await expect(
+        run({
+          name: 'no student',
+          call: (c) => c.getStudentSummary('', undefined, undefined, who),
+          calls: 'getStudentSummary',
+        }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+    }
+    expect(ownership.verifyStudentAccess).not.toHaveBeenCalled();
+    expect(service.getStudentSummary).not.toHaveBeenCalled();
+  });
+
   it('checks whose student before summarising their attendance', async () => {
     await run({
       name: 'checked',
