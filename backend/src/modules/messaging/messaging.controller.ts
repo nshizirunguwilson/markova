@@ -163,14 +163,30 @@ export class MessagingController {
   // hundred families is not something a student sends.
 
   @Post('broadcast/preview')
-  @Roles('ADMIN', 'TEACHER', 'PATRON', 'MATRON', 'NURSE', 'BURSAR')
+  @Roles(
+    'ADMIN',
+    'HEAD_TEACHER',
+    'TEACHER',
+    'PATRON',
+    'MATRON',
+    'NURSE',
+    'BURSAR',
+  )
   @ApiOperation({ summary: 'How many people an announcement would reach' })
   previewAudience(@Body() dto: PreviewAudienceDto) {
     return this.service.previewAudience(dto);
   }
 
   @Post('broadcast')
-  @Roles('ADMIN', 'TEACHER', 'PATRON', 'MATRON', 'NURSE', 'BURSAR')
+  @Roles(
+    'ADMIN',
+    'HEAD_TEACHER',
+    'TEACHER',
+    'PATRON',
+    'MATRON',
+    'NURSE',
+    'BURSAR',
+  )
   @ApiOperation({ summary: 'Tell a whole audience at once' })
   async broadcast(@Body() dto: BroadcastDto, @CurrentUser() user: any) {
     const result = await this.service.broadcast(dto, user.id);
@@ -186,6 +202,7 @@ export class MessagingController {
   @Get('conversations/:id/participants')
   @Roles(
     'ADMIN',
+    'HEAD_TEACHER',
     'TEACHER',
     'STUDENT',
     'PARENT',
@@ -204,7 +221,16 @@ export class MessagingController {
   }
 
   @Post('conversations/:id/participants')
-  @Roles('ADMIN', 'TEACHER', 'LIBRARIAN', 'PATRON', 'MATRON', 'NURSE', 'BURSAR')
+  @Roles(
+    'ADMIN',
+    'HEAD_TEACHER',
+    'TEACHER',
+    'LIBRARIAN',
+    'PATRON',
+    'MATRON',
+    'NURSE',
+    'BURSAR',
+  )
   @ApiOperation({ summary: 'Add people to a group' })
   addParticipants(
     @Param('id', ParseUUIDPipe) id: string,
@@ -219,6 +245,7 @@ export class MessagingController {
   @Delete('conversations/:id/participants/:userId')
   @Roles(
     'ADMIN',
+    'HEAD_TEACHER',
     'TEACHER',
     'STUDENT',
     'PARENT',
@@ -238,7 +265,16 @@ export class MessagingController {
   }
 
   @Put('conversations/:id/name')
-  @Roles('ADMIN', 'TEACHER', 'LIBRARIAN', 'PATRON', 'MATRON', 'NURSE', 'BURSAR')
+  @Roles(
+    'ADMIN',
+    'HEAD_TEACHER',
+    'TEACHER',
+    'LIBRARIAN',
+    'PATRON',
+    'MATRON',
+    'NURSE',
+    'BURSAR',
+  )
   @ApiOperation({ summary: 'Rename a group' })
   rename(
     @Param('id', ParseUUIDPipe) id: string,
@@ -253,6 +289,7 @@ export class MessagingController {
   @Post('attachments')
   @Roles(
     'ADMIN',
+    'HEAD_TEACHER',
     'TEACHER',
     'STUDENT',
     'PARENT',
